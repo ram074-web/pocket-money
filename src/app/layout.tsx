@@ -16,6 +16,9 @@ const NAV = [
   { href: "/projects", label: "Project Profitability" },
   { href: "/ask", label: "Ask" },
   { href: "/import", label: "Excel Import" },
+  { href: "/inbox", label: "Email + WhatsApp Inbox" },
+  { href: "/whatsapp", label: "WhatsApp Simulator" },
+  { href: "/permissions", label: "Controls & Permissions" },
 ];
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

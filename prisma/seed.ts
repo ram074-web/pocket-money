@@ -16,6 +16,9 @@ async function main() {
   console.log("Seeding database...");
 
   await prisma.$transaction([
+    prisma.whatsAppDraft.deleteMany(),
+    prisma.routingLogEntry.deleteMany(),
+    prisma.inboundMessage.deleteMany(),
     prisma.followUp.deleteMany(),
     prisma.communication.deleteMany(),
     prisma.projectOtherCost.deleteMany(),

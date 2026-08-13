@@ -107,6 +107,49 @@ Uploads an invoice register (.xlsx, template downloadable in-app) and:
 - logs every row's outcome to `ImportBatch`/`ImportRow` for a permanent audit
   trail.
 
+### Email + WhatsApp Inbox — test mode (`/inbox`, `/whatsapp`, `/permissions`)
+A working implementation of the "WhatsApp + Email Integrated Business
+Operations & Finance System" brief, running entirely in **test mode**: no real
+Gmail account or WhatsApp Business API is connected, by explicit instruction.
+
+- **`/inbox`** — click "Load Sample Scenarios" to run 9 realistic fixture
+  messages (`src/lib/inbox/fixtures.ts`) through the full pipeline: classify →
+  identify sender → extract fields → match against quotations/POs/invoices →
+  route to the right role → draft the resulting action. Covers a customer
+  quotation request, a customer PO (verified match → auto-drafts an invoice),
+  a PO amendment (value mismatch → flagged for verification), an invoice
+  correction request, a payment confirmation (recorded as unreconciled —
+  never auto-confirmed), a customer payment commitment/follow-up, a vendor
+  quotation, a vendor invoice with a missing PO (flagged), and a vendor
+  payment status request. Each message's detail page shows all 10 outputs the
+  spec asks for: classification, party identification, matching, extracted
+  fields, required action, responsible role, financial impact, approval
+  requirement, database changes, and the draft WhatsApp notification. A
+  Routing Log table (Email → Classification → Person Responsible → Action →
+  Status) is included. Re-running "Load Sample Scenarios" is idempotent;
+  `npm run db:seed` fully resets it.
+- **`/whatsapp`** — a chat-style simulator for the conversational commands in
+  spec sections 6/7/11/12/13 (`Dashboard`, invoice/quotation/PO status,
+  `Show <customer>`, morning/evening reports, and free-form questions via the
+  same engine as `/ask`). Switch the "logged in as" role to see role-based
+  access control (spec section 17) deny out-of-scope domains.
+- **`/permissions`** — the auto-allowed vs. approval-required action list
+  (spec section 16), the role permission matrix (section 17), and exactly
+  what Gmail OAuth scopes and WhatsApp Business API setup would be needed to
+  go live, with what the system would and would not be allowed to do at each
+  stage. Nothing here is enabled — it's the checklist for when you're ready.
+
+**Architecture note:** the core engine (`src/lib/inbox/classify.ts`,
+`extract.ts`, `match.ts`, `route.ts`, `permissions.ts`, `process.ts`) only
+ever consumes a channel-agnostic `IncomingMessage` and only ever produces
+`InboundMessage` / `RoutingLogEntry` / `WhatsAppDraft` / `Communication`
+records — it has no idea whether a message came from a fixture, a real Gmail
+inbox, or a live WhatsApp number. Going from `DEMO_GMAIL` → `REAL_GMAIL` or
+from the WhatsApp simulator → a live WhatsApp Business API is a matter of
+writing a new adapter that produces the same `IncomingMessage` shape and
+turns approved `WhatsAppDraft`/`Communication` rows into real API calls —
+the classification/extraction/matching/routing logic does not change.
+
 ## Data accuracy rules (spec section 15)
 
 - Nothing is fabricated: invoice/PO numbers, amounts, dates, and statuses
@@ -135,11 +178,24 @@ Uploads an invoice register (.xlsx, template downloadable in-app) and:
 ## Project structure
 
 ```
-prisma/schema.prisma      Full data model
-prisma/seed.ts             Realistic multi-division sample data
-src/lib/calc.ts            Outstanding/ageing/cash-position/risk aggregation
-src/lib/query-engine.ts    Rule-based NL question resolver ("Ask")
-src/lib/communications.ts  Draft email templates (follow-up, correction, etc.)
-src/app/                   Dashboard, Customers, Vendors, Invoices, Actions,
-                            Projects, Ask, Import pages + API routes
+prisma/schema.prisma       Full data model
+prisma/seed.ts              Realistic multi-division sample data
+src/lib/calc.ts             Outstanding/ageing/cash-position/risk aggregation
+src/lib/query-engine.ts     Rule-based NL question resolver ("Ask")
+src/lib/communications.ts   Draft email templates (follow-up, correction, etc.)
+src/lib/inbox/              Channel-agnostic email+WhatsApp engine (test mode)
+  types.ts                    IncomingMessage/ClassificationResult shapes
+  classify.ts                  Rule-based message classification
+  identify.ts                  Sender → customer/vendor matching
+  extract.ts                    Labeled-field extraction from message bodies
+  match.ts                      PO-vs-quotation, vendor-invoice-vs-PO matching
+  route.ts                      Routing rules (who gets notified)
+  permissions.ts                 Auto-allowed vs approval-required + role matrix
+  process.ts                     Orchestrator: classify→extract→match→route→draft
+  whatsapp-templates.ts          WhatsApp notification message builders
+  whatsapp-commands.ts           WhatsApp conversational command handling
+  fixtures.ts                    9 demo messages used in test mode
+src/app/                    Dashboard, Customers, Vendors, Invoices, Actions,
+                             Projects, Ask, Import, Inbox, WhatsApp,
+                             Permissions pages + API routes
 ```

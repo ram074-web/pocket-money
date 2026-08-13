@@ -99,11 +99,12 @@ model Employee {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  projects       Project[]
-  quotations     Quotation[]
-  invoices       Invoice[]
-  vendorInvoices VendorInvoice[]
-  followUps      FollowUp[]
+  projects        Project[]
+  quotations      Quotation[]
+  invoices        Invoice[]
+  vendorInvoices  VendorInvoice[]
+  followUps       FollowUp[]
+  inboundMessages InboundMessage[]
 }
 
 model Customer {
@@ -118,12 +119,13 @@ model Customer {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  projects       Project[]
-  quotations     Quotation[]
-  purchaseOrders PurchaseOrder[]
-  invoices       Invoice[]
-  communications Communication[]
-  followUps      FollowUp[]
+  projects        Project[]
+  quotations      Quotation[]
+  purchaseOrders  PurchaseOrder[]
+  invoices        Invoice[]
+  communications  Communication[]
+  followUps       FollowUp[]
+  inboundMessages InboundMessage[]
 
   @@index([name])
 }
@@ -139,11 +141,12 @@ model Vendor {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  purchaseOrders VendorPurchaseOrder[]
-  vendorInvoices VendorInvoice[]
-  communications Communication[]
-  followUps      FollowUp[]
-  projectCosts   ProjectVendorCost[]
+  purchaseOrders  VendorPurchaseOrder[]
+  vendorInvoices  VendorInvoice[]
+  communications  Communication[]
+  followUps       FollowUp[]
+  projectCosts    ProjectVendorCost[]
+  inboundMessages InboundMessage[]
 
   @@index([name])
 }
@@ -193,7 +196,8 @@ model Quotation {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
-  purchaseOrders PurchaseOrder[]
+  purchaseOrders  PurchaseOrder[]
+  inboundMessages InboundMessage[]
 
   @@index([customerId])
   @@index([status])
@@ -215,7 +219,8 @@ model PurchaseOrder {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  invoices Invoice[]
+  invoices        Invoice[]
+  inboundMessages InboundMessage[]
 
   @@index([customerId])
 }
@@ -244,10 +249,11 @@ model Invoice {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  payments       Payment[]
-  corrections    InvoiceCorrection[]
-  communications Communication[]
-  followUps      FollowUp[]
+  payments        Payment[]
+  corrections     InvoiceCorrection[]
+  communications  Communication[]
+  followUps       FollowUp[]
+  inboundMessages InboundMessage[]
 
   @@index([customerId])
   @@index([status])
@@ -324,10 +330,11 @@ model VendorInvoice {
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
-  payments       VendorPayment[]
-  communications Communication[]
-  followUps      FollowUp[]
-  projectCost    ProjectVendorCost?
+  payments        VendorPayment[]
+  communications  Communication[]
+  followUps       FollowUp[]
+  projectCost     ProjectVendorCost?
+  inboundMessages InboundMessage[]
 
   @@unique([vendorId, vendorInvoiceNo])
   @@index([status])
@@ -463,4 +470,149 @@ model ImportRow {
   createdAt     DateTime    @default(now())
 
   @@index([importBatchId])
+}
+
+// ===========================================================================
+// Channel-agnostic inbox: WhatsApp + Email Integrated Business Operations.
+//
+// The core engine (classify -> extract -> match -> route -> draft) only ever
+// consumes an InboundMessage and only ever produces RoutingLogEntry /
+// WhatsAppDraft / Communication records. Swapping the channel adapter later
+// (DEMO_GMAIL -> REAL_GMAIL, WHATSAPP_DESIGN -> LIVE_WHATSAPP_API) means
+// writing a new adapter that creates InboundMessage rows the same way — the
+// business logic in src/lib/inbox does not change.
+// ===========================================================================
+
+enum Channel {
+  EMAIL
+  WHATSAPP
+}
+
+// Where the message actually came from. DEMO_* sources are fixture data used
+// in test mode; nothing outside this app is touched. REAL_GMAIL and
+// LIVE_WHATSAPP are reserved for when live access is explicitly enabled.
+enum MessageSource {
+  DEMO_GMAIL
+  DEMO_WHATSAPP
+  REAL_GMAIL
+  LIVE_WHATSAPP
+}
+
+enum MessageCategory {
+  CUSTOMER_QUOTATION_REQUEST
+  CUSTOMER_PO
+  PO_AMENDMENT
+  INVOICE_SUBMISSION_INSTRUCTION
+  INVOICE_REJECTION
+  INVOICE_CORRECTION_REQUEST
+  PAYMENT_CONFIRMATION
+  PAYMENT_FOLLOWUP
+  VENDOR_QUOTATION
+  VENDOR_INVOICE
+  VENDOR_PAYMENT_REQUEST
+  CUSTOMER_COMPLAINT
+  PROJECT_INSTRUCTION
+  OTHER
+}
+
+enum MatchResult {
+  NOT_APPLICABLE
+  VERIFIED
+  REQUIRES_VERIFICATION
+  NO_MATCH_FOUND
+}
+
+enum ProcessingStatus {
+  RECEIVED
+  CLASSIFIED
+  MATCHED
+  ACTION_DRAFTED
+  NEEDS_HUMAN_INPUT
+  COMPLETED
+}
+
+enum ApprovalRequirement {
+  AUTO_ALLOWED
+  APPROVAL_REQUIRED
+}
+
+model InboundMessage {
+  id          String        @id @default(cuid())
+  channel     Channel
+  source      MessageSource
+  fromAddress String
+  fromName    String?
+  toAddress   String?
+  subject     String?
+  body        String
+  receivedAt  DateTime
+
+  category              MessageCategory?
+  classificationReasons String?
+  matchResult           MatchResult          @default(NOT_APPLICABLE)
+  matchReasons          String?
+  status                ProcessingStatus     @default(RECEIVED)
+  approvalRequirement   ApprovalRequirement?
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  vendorId   String?
+  vendor     Vendor?   @relation(fields: [vendorId], references: [id])
+
+  quotationId     String?
+  quotation       Quotation?     @relation(fields: [quotationId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  invoiceId       String?
+  invoice         Invoice?       @relation(fields: [invoiceId], references: [id])
+  vendorInvoiceId String?
+  vendorInvoice   VendorInvoice? @relation(fields: [vendorInvoiceId], references: [id])
+
+  extractedData         String
+  requiredAction        String?
+  responsibleRole       String?
+  responsibleEmployeeId String?
+  responsibleEmployee   Employee? @relation(fields: [responsibleEmployeeId], references: [id])
+  financialImpact       Float?
+  databaseUpdateSummary String?
+
+  createdAt DateTime @default(now())
+
+  routingLog     RoutingLogEntry[]
+  whatsappDrafts WhatsAppDraft[]
+
+  @@index([category])
+  @@index([status])
+}
+
+// Email -> Classification -> Person Responsible -> Action -> Status (spec section 5).
+model RoutingLogEntry {
+  id               String         @id @default(cuid())
+  inboundMessageId String
+  inboundMessage   InboundMessage @relation(fields: [inboundMessageId], references: [id])
+  classification   String
+  routedTo         String
+  action           String
+  status           String
+  createdAt        DateTime       @default(now())
+
+  @@index([inboundMessageId])
+}
+
+// A WhatsApp notification/report, drafted only — nothing is ever sent from
+// here automatically. "status" moves to "Sent" only via explicit human action
+// once a live WhatsApp Business API channel is connected.
+model WhatsAppDraft {
+  id                String          @id @default(cuid())
+  inboundMessageId  String?
+  inboundMessage    InboundMessage? @relation(fields: [inboundMessageId], references: [id])
+  toRole            String
+  template          String
+  messageText       String
+  relatedCustomerId String?
+  relatedVendorId   String?
+  status            String          @default("Draft")
+  createdAt         DateTime        @default(now())
+
+  @@index([inboundMessageId])
 }
