@@ -1,0 +1,466 @@
+// Prisma schema for the Integrated Sales, Invoicing, Receivables & Payables
+// Management system (Digital Marketing + Offline/Print Marketing divisions).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Division {
+  DIGITAL_MARKETING
+  OFFLINE_PRINT
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  REVISED
+}
+
+enum POStatus {
+  AWAITED
+  RECEIVED
+  PARTIALLY_UTILISED
+  CLOSED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  READY_FOR_SUBMISSION
+  SUBMITTED
+  UNDER_VERIFICATION
+  CORRECTION_REQUIRED
+  RESUBMITTED
+  APPROVED
+  PAYMENT_DUE
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+  CREDIT_NOTE
+}
+
+enum VendorInvoiceStatus {
+  RECEIVED
+  UNDER_VERIFICATION
+  APPROVAL_PENDING
+  APPROVED
+  PAYMENT_DUE
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  DISPUTED
+  CANCELLED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum FollowUpStatus {
+  PENDING
+  DONE
+  CANCELLED
+}
+
+enum FollowUpDirection {
+  CUSTOMER
+  VENDOR
+  INTERNAL
+}
+
+enum CommunicationDirection {
+  OUTBOUND
+  INBOUND
+  INTERNAL
+}
+
+enum RiskSeverity {
+  RED
+  AMBER
+  GREEN
+}
+
+model Employee {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?  @unique
+  role      String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects       Project[]
+  quotations     Quotation[]
+  invoices       Invoice[]
+  vendorInvoices VendorInvoice[]
+  followUps      FollowUp[]
+}
+
+model Customer {
+  id           String   @id @default(cuid())
+  name         String
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  division     Division
+  creditLimit  Float?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  projects       Project[]
+  quotations     Quotation[]
+  purchaseOrders PurchaseOrder[]
+  invoices       Invoice[]
+  communications Communication[]
+  followUps      FollowUp[]
+
+  @@index([name])
+}
+
+model Vendor {
+  id           String   @id @default(cuid())
+  name         String
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  category     String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  purchaseOrders VendorPurchaseOrder[]
+  vendorInvoices VendorInvoice[]
+  communications Communication[]
+  followUps      FollowUp[]
+  projectCosts   ProjectVendorCost[]
+
+  @@index([name])
+}
+
+// A Project links a customer requirement across the full
+// quotation -> PO -> invoice -> payment -> vendor cost lifecycle.
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  division    Division
+  customerId  String
+  customer    Customer  @relation(fields: [customerId], references: [id])
+  employeeId  String?
+  employee    Employee? @relation(fields: [employeeId], references: [id])
+  status      String    @default("Active")
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  quotations     Quotation[]
+  purchaseOrders PurchaseOrder[]
+  invoices       Invoice[]
+  vendorCosts    ProjectVendorCost[]
+  otherCosts     ProjectOtherCost[]
+
+  @@index([customerId])
+}
+
+model Quotation {
+  id            String          @id @default(cuid())
+  quotationNo   String          @unique
+  quotationDate DateTime
+  customerId    String
+  customer      Customer        @relation(fields: [customerId], references: [id])
+  projectId     String?
+  project       Project?        @relation(fields: [projectId], references: [id])
+  division      Division
+  requirement   String
+  value         Float
+  taxAmount     Float           @default(0)
+  discount      Float           @default(0)
+  status        QuotationStatus @default(DRAFT)
+  employeeId    String?
+  employee      Employee?       @relation(fields: [employeeId], references: [id])
+  revisionOf    String?
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model PurchaseOrder {
+  id          String     @id @default(cuid())
+  poNo        String     @unique
+  poDate      DateTime
+  customerId  String
+  customer    Customer   @relation(fields: [customerId], references: [id])
+  quotationId String?
+  quotation   Quotation? @relation(fields: [quotationId], references: [id])
+  projectId   String?
+  project     Project?   @relation(fields: [projectId], references: [id])
+  value       Float
+  status      POStatus   @default(RECEIVED)
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  invoices Invoice[]
+
+  @@index([customerId])
+}
+
+model Invoice {
+  id              String         @id @default(cuid())
+  invoiceNo       String         @unique
+  invoiceDate     DateTime
+  customerId      String
+  customer        Customer       @relation(fields: [customerId], references: [id])
+  projectId       String?
+  project         Project?       @relation(fields: [projectId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  division        Division
+  value           Float
+  taxAmount       Float          @default(0)
+  submissionDate  DateTime?
+  dueDate         DateTime
+  status          InvoiceStatus  @default(DRAFT)
+  amountReceived  Float          @default(0)
+  employeeId      String?
+  employee        Employee?      @relation(fields: [employeeId], references: [id])
+  revisionOfId    String?
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  payments       Payment[]
+  corrections    InvoiceCorrection[]
+  communications Communication[]
+  followUps      FollowUp[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+// Full outstanding = invoice.value + invoice.taxAmount - sum(payments) is computed at read time.
+
+model Payment {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  amount      Float
+  paymentDate DateTime
+  reference   String?
+  reconciled  Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+model InvoiceCorrection {
+  id                String    @id @default(cuid())
+  invoiceId         String
+  invoice           Invoice   @relation(fields: [invoiceId], references: [id])
+  correctionNeeded  String
+  requestedBy       String
+  requestedDate     DateTime
+  responsiblePerson String?
+  status            String    @default("Open")
+  correctedDate     DateTime?
+  resubmittedDate   DateTime?
+  reasonForDelay    String?
+  createdAt         DateTime  @default(now())
+
+  @@index([invoiceId])
+}
+
+model VendorPurchaseOrder {
+  id        String   @id @default(cuid())
+  poNo      String   @unique
+  poDate    DateTime
+  vendorId  String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id])
+  value     Float
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vendorInvoices VendorInvoice[]
+
+  @@index([vendorId])
+}
+
+model VendorInvoice {
+  id              String               @id @default(cuid())
+  vendorInvoiceNo String
+  invoiceDate     DateTime
+  vendorId        String
+  vendor          Vendor               @relation(fields: [vendorId], references: [id])
+  vendorPoId      String?
+  vendorPo        VendorPurchaseOrder? @relation(fields: [vendorPoId], references: [id])
+  projectId       String?
+  amount          Float
+  taxAmount       Float                @default(0)
+  dueDate         DateTime
+  amountPaid      Float                @default(0)
+  status          VendorInvoiceStatus  @default(RECEIVED)
+  approvalStatus  ApprovalStatus       @default(PENDING)
+  employeeId      String?
+  employee        Employee?            @relation(fields: [employeeId], references: [id])
+  notes           String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  payments       VendorPayment[]
+  communications Communication[]
+  followUps      FollowUp[]
+  projectCost    ProjectVendorCost?
+
+  @@unique([vendorId, vendorInvoiceNo])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model VendorPayment {
+  id              String        @id @default(cuid())
+  vendorInvoiceId String
+  vendorInvoice   VendorInvoice @relation(fields: [vendorInvoiceId], references: [id])
+  amount          Float
+  paymentDate     DateTime
+  reference       String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  @@index([vendorInvoiceId])
+}
+
+// Links a vendor invoice's cost to the customer project it was incurred for,
+// used for project profitability (Revenue - Vendor Cost - Other Costs).
+model ProjectVendorCost {
+  id              String         @id @default(cuid())
+  projectId       String
+  project         Project        @relation(fields: [projectId], references: [id])
+  vendorId        String
+  vendor          Vendor         @relation(fields: [vendorId], references: [id])
+  vendorInvoiceId String?        @unique
+  vendorInvoice   VendorInvoice? @relation(fields: [vendorInvoiceId], references: [id])
+  amount          Float
+  description     String?
+  createdAt       DateTime       @default(now())
+
+  @@index([projectId])
+}
+
+model ProjectOtherCost {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id])
+  description String
+  amount      Float
+  createdAt   DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model Communication {
+  id              String                 @id @default(cuid())
+  direction       CommunicationDirection
+  channel         String                 @default("email")
+  subject         String
+  body            String
+  customerId      String?
+  customer        Customer?              @relation(fields: [customerId], references: [id])
+  vendorId        String?
+  vendor          Vendor?                @relation(fields: [vendorId], references: [id])
+  invoiceId       String?
+  invoice         Invoice?               @relation(fields: [invoiceId], references: [id])
+  vendorInvoiceId String?
+  vendorInvoice   VendorInvoice?         @relation(fields: [vendorInvoiceId], references: [id])
+  sentBy          String?
+  approved        Boolean                @default(false)
+  createdAt       DateTime               @default(now())
+
+  @@index([customerId])
+  @@index([vendorId])
+  @@index([invoiceId])
+}
+
+model FollowUp {
+  id              String            @id @default(cuid())
+  direction       FollowUpDirection
+  title           String
+  details         String?
+  customerId      String?
+  customer        Customer?         @relation(fields: [customerId], references: [id])
+  vendorId        String?
+  vendor          Vendor?           @relation(fields: [vendorId], references: [id])
+  invoiceId       String?
+  invoice         Invoice?          @relation(fields: [invoiceId], references: [id])
+  vendorInvoiceId String?
+  vendorInvoice   VendorInvoice?    @relation(fields: [vendorInvoiceId], references: [id])
+  amount          Float?
+  employeeId      String?
+  employee        Employee?         @relation(fields: [employeeId], references: [id])
+  dueDate         DateTime
+  status          FollowUpStatus    @default(PENDING)
+  priority        RiskSeverity      @default(AMBER)
+  nextAction      String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([dueDate])
+  @@index([status])
+}
+
+// Audit trail for important changes across the system (data accuracy rule #15).
+model AuditLog {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  action     String
+  field      String?
+  oldValue   String?
+  newValue   String?
+  actor      String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+// Records of Excel imports, preserved for traceability (spec section 12).
+model ImportBatch {
+  id         String   @id @default(cuid())
+  fileName   String
+  importedBy String?
+  summary    String
+  createdAt  DateTime @default(now())
+
+  rows ImportRow[]
+}
+
+model ImportRow {
+  id            String      @id @default(cuid())
+  importBatchId String
+  importBatch   ImportBatch @relation(fields: [importBatchId], references: [id])
+  rowNumber     Int
+  rawData       String
+  entityType    String
+  status        String
+  issues        String?
+  createdAt     DateTime    @default(now())
+
+  @@index([importBatchId])
+}
