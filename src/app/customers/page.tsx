@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { invoiceOutstanding, isOverdue, fmtINR } from "@/lib/calc";
 import { PageHeader, Section, EmptyState } from "@/components/ui";
 import { requireAccess } from "@/lib/auth";
+import { NewButton } from "@/components/NewButton";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function CustomersPage() {
     <div>
       <PageHeader title="Customers" subtitle="360° view across quotations, POs, invoices and payments" />
       <div className="p-6">
-        <Section title={`${customers.length} customer(s)`}>
+        <Section title={`${customers.length} customer(s)`} action={<NewButton href="/customers/new" label="New customer" />}>
           {customers.length === 0 ? (
             <EmptyState text="No customers yet." />
           ) : (

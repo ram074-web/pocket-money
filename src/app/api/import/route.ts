@@ -42,6 +42,126 @@ function num(value: unknown): number | null {
   return null;
 }
 
+function cellText(value: unknown): string {
+  if (value == null) return "";
+  // ExcelJS returns an object for hyperlink/rich-text cells; an email column
+  // formatted as a mailto link is the common case here.
+  if (typeof value === "object") {
+    const v = value as { text?: string; hyperlink?: string; result?: unknown };
+    if (typeof v.text === "string") return v.text.trim();
+    if (typeof v.result === "string") return v.result.trim();
+    if (typeof v.hyperlink === "string") return v.hyperlink.replace(/^mailto:/i, "").trim();
+    return "";
+  }
+  return String(value).trim();
+}
+
+/**
+ * Imports the customer master. Existing customers are matched by name and
+ * left untouched — this never edits a customer you already have, so
+ * re-running a workbook is safe.
+ */
+async function importCustomers(sheet: ExcelJS.Worksheet): Promise<{ results: RowIssue[]; created: number }> {
+  const headerRow = sheet.getRow(1);
+  const col: Record<string, number> = {};
+  headerRow.eachCell((cell, n) => {
+    col[normalizeHeader(String(cell.value ?? ""))] = n;
+  });
+
+  const at = (row: ExcelJS.Row, key: string) => (col[key] ? row.getCell(col[key]).value : undefined);
+
+  if (!("name" in col) && !("customer" in col)) {
+    return {
+      results: [
+        {
+          row: 1,
+          status: "missing_fields",
+          issues: ['The Customers sheet needs a "Name" column (optionally Division, Contact Person, Contact Email, Contact Phone, Credit Limit).'],
+          data: {},
+        },
+      ],
+      created: 0,
+    };
+  }
+
+  const existing = await prisma.customer.findMany();
+  const byName = new Map(existing.map((c) => [c.name.trim().toLowerCase(), c]));
+  const seen = new Set<string>();
+  const results: RowIssue[] = [];
+  const toCreate: {
+    name: string;
+    division: Division;
+    contactName?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    creditLimit?: number;
+  }[] = [];
+
+  for (let r = 2; r <= sheet.actualRowCount; r++) {
+    const row = sheet.getRow(r);
+    if (row.cellCount === 0) continue;
+
+    const name = cellText(at(row, "name") ?? at(row, "customer"));
+    if (!name) continue; // blank row
+
+    const divisionRaw = cellText(at(row, "division")).toLowerCase();
+    const contactName = cellText(at(row, "contact person") || at(row, "contact name"));
+    const contactEmail = cellText(at(row, "contact email") || at(row, "email")).toLowerCase();
+    const contactPhone = cellText(at(row, "contact phone") || at(row, "phone"));
+    const creditLimit = num(at(row, "credit limit"));
+
+    const data = { name, division: divisionRaw, contactName, contactEmail, contactPhone, creditLimit };
+    const key = name.toLowerCase();
+
+    if (seen.has(key)) {
+      results.push({ row: r, status: "duplicate_in_file", issues: [`"${name}" appears more than once in this sheet.`], data });
+      continue;
+    }
+    seen.add(key);
+
+    if (byName.has(key)) {
+      results.push({ row: r, status: "duplicate", issues: [`"${name}" already exists. Left unchanged.`], data });
+      continue;
+    }
+
+    // Division drives which side of the business a customer belongs to, so an
+    // unreadable value is flagged rather than defaulted to one of them.
+    let division: Division | null = null;
+    if (/digital/.test(divisionRaw)) division = Division.DIGITAL_MARKETING;
+    else if (/offline|print/.test(divisionRaw)) division = Division.OFFLINE_PRINT;
+
+    if (!division) {
+      results.push({
+        row: r,
+        status: "missing_fields",
+        issues: [
+          divisionRaw
+            ? `Division "${divisionRaw}" not recognised — use "Digital Marketing" or "Offline/Print".`
+            : 'Division is required — use "Digital Marketing" or "Offline/Print".',
+        ],
+        data,
+      });
+      continue;
+    }
+
+    toCreate.push({
+      name,
+      division,
+      contactName: contactName || undefined,
+      contactEmail: contactEmail || undefined,
+      contactPhone: contactPhone || undefined,
+      creditLimit: creditLimit ?? undefined,
+    });
+    results.push({ row: r, status: "ok", issues: [], data });
+  }
+
+  if (toCreate.length) {
+    await prisma.$transaction(toCreate.map((c) => prisma.customer.create({ data: c })));
+  }
+
+  return { results, created: toCreate.length };
+}
+
 export async function POST(req: NextRequest) {
   const { user, response } = await requireApiUser("invoices");
   if (response) return response;
@@ -60,11 +180,58 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Could not parse file. Upload a valid .xlsx file." }, { status: 400 });
   }
 
-  const sheet = workbook.worksheets[0];
-  if (!sheet) {
+  if (workbook.worksheets.length === 0) {
     return NextResponse.json({ error: "Workbook has no sheets." }, { status: 400 });
   }
 
+  // A workbook may carry a "Customers" sheet, an invoice sheet, or both.
+  // Customers are processed first so a single file can populate a brand-new
+  // database: invoices on the second sheet then match the customers created
+  // moments earlier, instead of every row failing as "unknown customer".
+  const byName = (want: string) =>
+    workbook.worksheets.find((ws) => normalizeHeader(ws.name) === want);
+
+  const customersSheet = byName("customers");
+  const invoiceSheet =
+    byName("invoices") ?? workbook.worksheets.find((ws) => ws !== customersSheet) ?? null;
+
+  const customerResults: RowIssue[] = [];
+  let customersCreated = 0;
+
+  if (customersSheet) {
+    const outcome = await importCustomers(customersSheet);
+    customerResults.push(...outcome.results);
+    customersCreated = outcome.created;
+  }
+
+  if (!invoiceSheet) {
+    // Customers-only workbook: a legitimate first step on a fresh install.
+    const summary = {
+      customersCreated,
+      customerRows: customerResults.length,
+      customerDuplicates: customerResults.filter((r) => r.status === "duplicate").length,
+      customerMissingFields: customerResults.filter((r) => r.status === "missing_fields").length,
+    };
+    const batch = await prisma.importBatch.create({
+      data: {
+        fileName: file.name,
+        importedBy: `${user.name} <${user.email}>`,
+        summary: JSON.stringify(summary),
+        rows: {
+          create: customerResults.map((r) => ({
+            rowNumber: r.row,
+            rawData: JSON.stringify(r.data),
+            entityType: "Customer",
+            status: r.status,
+            issues: r.issues.join(" "),
+          })),
+        },
+      },
+    });
+    return NextResponse.json({ batchId: batch.id, summary, rows: customerResults });
+  }
+
+  const sheet = invoiceSheet;
   const headerRow = sheet.getRow(1);
   const columnIndex: Record<string, number> = {};
   headerRow.eachCell((cell, colNumber) => {
@@ -206,6 +373,7 @@ export async function POST(req: NextRequest) {
   );
 
   const summary = {
+    ...(customersSheet ? { customersCreated } : {}),
     totalRows: results.length,
     created: created.length,
     duplicates: results.filter((r) => r.status === "duplicate").length,
@@ -222,16 +390,30 @@ export async function POST(req: NextRequest) {
       importedBy: `${user.name} <${user.email}>`,
       summary: JSON.stringify(summary),
       rows: {
-        create: results.map((r) => ({
-          rowNumber: r.row,
-          rawData: JSON.stringify(r.data),
-          entityType: "Invoice",
-          status: r.status,
-          issues: r.issues.join(" "),
-        })),
+        create: [
+          ...customerResults.map((r) => ({
+            rowNumber: r.row,
+            rawData: JSON.stringify(r.data),
+            entityType: "Customer",
+            status: r.status,
+            issues: r.issues.join(" "),
+          })),
+          ...results.map((r) => ({
+            rowNumber: r.row,
+            rawData: JSON.stringify(r.data),
+            entityType: "Invoice",
+            status: r.status,
+            issues: r.issues.join(" "),
+          })),
+        ],
       },
     },
   });
 
-  return NextResponse.json({ batchId: batch.id, summary, rows: results });
+  return NextResponse.json({
+    batchId: batch.id,
+    summary,
+    rows: results,
+    customerRows: customerResults,
+  });
 }

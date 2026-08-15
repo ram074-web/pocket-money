@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { vendorInvoiceOutstanding, isOverdue, fmtINR } from "@/lib/calc";
 import { PageHeader, Section, EmptyState } from "@/components/ui";
 import { requireAccess } from "@/lib/auth";
+import { NewButton } from "@/components/NewButton";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export default async function VendorsPage() {
     <div>
       <PageHeader title="Vendors" subtitle="Payables across the vendor requirement-to-payment cycle" />
       <div className="p-6">
-        <Section title={`${vendors.length} vendor(s)`}>
+        <Section title={`${vendors.length} vendor(s)`} action={<NewButton href="/vendors/new" label="New vendor" />}>
           {vendors.length === 0 ? (
             <EmptyState text="No vendors yet." />
           ) : (

@@ -3,6 +3,36 @@ import ExcelJS from "exceljs";
 
 export async function GET() {
   const workbook = new ExcelJS.Workbook();
+
+  // Customers first: on a new database the invoice sheet has nothing to match
+  // against until these exist, and the importer processes them in this order.
+  const customers = workbook.addWorksheet("Customers");
+  customers.columns = [
+    { header: "Name", key: "name", width: 34 },
+    { header: "Division", key: "division", width: 20 },
+    { header: "Contact Person", key: "contactName", width: 22 },
+    { header: "Contact Email", key: "contactEmail", width: 30 },
+    { header: "Contact Phone", key: "contactPhone", width: 18 },
+    { header: "Credit Limit", key: "creditLimit", width: 16 },
+  ];
+  customers.getRow(1).font = { bold: true };
+  customers.addRow({
+    name: "Orion Global Foods Pvt Ltd",
+    division: "Digital Marketing",
+    contactName: "Neha Kapoor",
+    contactEmail: "neha.kapoor@orionglobalfoods.com",
+    contactPhone: "+91 98200 11122",
+    creditLimit: 2500000,
+  });
+  customers.addRow({
+    name: "Sterling Pharma International",
+    division: "Offline/Print",
+    contactName: "David Chen",
+    contactEmail: "david.chen@sterlingpharma.com",
+    contactPhone: "+91 98100 22233",
+    creditLimit: 1500000,
+  });
+
   const sheet = workbook.addWorksheet("Invoices");
   sheet.columns = [
     { header: "Customer", key: "customer", width: 32 },

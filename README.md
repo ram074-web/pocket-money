@@ -103,13 +103,42 @@ overdue invoices, highest outstanding customer, corrections pending, cash
 position, employee follow-up load, invoices above a value threshold that are
 overdue, POs without invoices, project margins, etc).
 
+### Data entry (`/customers/new`, `/quotations/new`, `/purchase-orders/new`,
+`/invoices/new`, `/vendors/new`, `/vendor-invoices/new`, and the payment forms)
+Every record can be entered by hand, so the system works on a fresh install
+with no seed data and no spreadsheet. The forms enforce the same rules the
+rest of the system reports on, at the server action — never only in the
+browser (`src/lib/record-actions.ts`):
+
+- Nothing is guessed. A blank or unparseable amount or date is an error the
+  user has to resolve, never a silent zero or today's date.
+- Document numbers are *suggested* by incrementing your last one
+  (`src/lib/next-number.ts`) and are fully editable — nothing is written
+  under a number nobody typed.
+- An invoice cannot take a linked PO past its value (2% tolerance), and a
+  receipt cannot exceed what is outstanding on the invoice.
+- A vendor invoice is recorded **pending approval**; the payment form
+  refuses it until an Owner or Finance Manager approves, whatever the UI
+  offers.
+- Duplicate customer, vendor, quotation, PO and invoice numbers are refused.
+- Every create is written to `AuditLog` with the acting user.
+- Each form and each action independently checks the signed-in user's role
+  against the same permission matrix (§17) — Sales can raise a quotation but
+  not an invoice; an Accounts Executive can raise an invoice but not a
+  customer.
+
 ### Excel Import (`/import`)
-Uploads an invoice register (.xlsx, template downloadable in-app) and:
-- imports clean new rows automatically,
+Uploads a workbook (.xlsx, template downloadable in-app) with a **Customers**
+sheet and an **Invoices** sheet. Customers are processed first, so a single
+file can populate a brand-new system and the invoice rows then match the
+customers just created. The importer:
+- creates customers that don't exist yet and leaves existing ones (matched by
+  name) unchanged, so re-running a file is safe,
+- imports clean new invoice rows automatically,
 - **skips** rows whose invoice number already exists (no overwrite),
 - **flags as a conflict** rows where an existing invoice number has a
   different amount (requires manual verification, not auto-resolved),
-- flags missing required fields, unrecognized customers, and invalid date
+- flags missing required fields, unrecognized divisions, and invalid date
   ranges,
 - logs every row's outcome to `ImportBatch`/`ImportRow` for a permanent audit
   trail.
@@ -322,17 +351,17 @@ internet.
 
 ## What's intentionally out of scope for this pass
 
-- Authentication/multi-user access control (single-tenant demo).
-- Full CRUD UI for creating/editing quotations, POs, invoices, and vendor
-  invoices by hand — the current focus is the reporting/control-tower layer
-  (dashboard, 360° views, register, action list, Ask, Excel consolidation) on
-  top of a complete data model. Extending the API routes and seed patterns in
-  `src/lib` to add create/edit forms is straightforward follow-up work.
+- Editing and deleting existing records. Everything can be *created* and
+  moved forward (approve, record payment), but a mistyped invoice cannot yet
+  be corrected in place — the correction-history model exists in the schema
+  and the UI for it is the next step.
 - Sending communications automatically — draft emails are generated and
   displayed for review only, per the spec's approval requirement.
-- Excel import currently supports the invoice register; the same
+- Excel import covers customers and the invoice register; the same
   duplicate/conflict-detection pattern in `src/app/api/import/route.ts` can be
   extended to quotations, POs, and vendor invoices.
+- User management, password reset, and login rate limiting — see
+  *Authentication & access control* below.
 
 ## Project structure
 

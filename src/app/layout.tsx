@@ -41,6 +41,8 @@ const NAV: { href: string; label: string; domain?: DataDomain }[] = [
   { href: "/customers", label: "Customers", domain: "customers" },
   { href: "/vendors", label: "Vendors", domain: "payables" },
   { href: "/invoices", label: "Invoices", domain: "invoices" },
+  { href: "/quotations/new", label: "New Quotation", domain: "quotations" },
+  { href: "/purchase-orders/new", label: "Record PO", domain: "pos" },
   { href: "/actions", label: "My Action List" },
   { href: "/projects", label: "Project Profitability", domain: "projects" },
   { href: "/ask", label: "Ask", domain: "dashboard" },

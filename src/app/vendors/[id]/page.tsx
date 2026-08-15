@@ -3,11 +3,14 @@ import { prisma } from "@/lib/db";
 import { vendorInvoiceOutstanding, vendorInvoiceTotal, isOverdue, fmtINR } from "@/lib/calc";
 import { PageHeader, Section, StatCard, StatusBadge, EmptyState } from "@/components/ui";
 import { requireAccess } from "@/lib/auth";
+import { AddLink } from "@/components/NewButton";
+import { VendorInvoiceActions } from "@/components/VendorInvoiceActions";
 
 export const dynamic = "force-dynamic";
 
 export default async function VendorDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireAccess("payables");
+  const user = await requireAccess("payables");
+  const canApprove = user.roleLabel === "Owner" || user.roleLabel === "Finance Manager";
 
   const { id } = await params;
   const vendor = await prisma.vendor.findUnique({
@@ -90,7 +93,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
           )}
         </Section>
 
-        <Section title="Vendor Invoices">
+        <Section title="Vendor Invoices" action={<AddLink href={`/vendor-invoices/new?vendor=${vendor.id}`} label="Record invoice" />}>
           {vendor.vendorInvoices.length === 0 ? (
             <EmptyState text="No invoices." />
           ) : (
@@ -105,6 +108,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
                   <th>Outstanding</th>
                   <th>Status</th>
                   <th>Approval</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -121,6 +125,14 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
                     </td>
                     <td>
                       <StatusBadge status={vi.approvalStatus} />
+                    </td>
+                    <td>
+                      <VendorInvoiceActions
+                        id={vi.id}
+                        approved={vi.approvalStatus === "APPROVED"}
+                        outstanding={vendorInvoiceOutstanding(vi)}
+                        canApprove={canApprove}
+                      />
                     </td>
                   </tr>
                 ))}

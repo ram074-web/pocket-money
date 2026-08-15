@@ -14,7 +14,11 @@ export default async function ImportPage() {
       <div className="p-6 space-y-6">
         <Section title="How it works">
           <ul className="text-sm list-disc pl-5 space-y-1 text-[var(--muted)]">
-            <li>Upload an invoice register in the expected column format (download the template below).</li>
+            <li>
+              The template has two sheets. <strong>Customers</strong> is processed first, so one file can
+              populate a brand-new system — invoices on the second sheet then match the customers just created.
+            </li>
+            <li>Existing customers are matched by name and left unchanged, so re-running a file is safe.</li>
             <li>Rows with a customer name and invoice number that don&apos;t already exist are imported automatically.</li>
             <li>Duplicate invoice numbers (already in the system, or repeated within the file) are skipped, not overwritten.</li>
             <li>Rows where the same invoice number exists with different amounts are flagged as a conflict for manual verification.</li>

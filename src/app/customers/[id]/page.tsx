@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { invoiceOutstanding, isOverdue, fmtINR } from "@/lib/calc";
 import { PageHeader, Section, StatCard, StatusBadge, EmptyState } from "@/components/ui";
 import { requireAccess } from "@/lib/auth";
+import { AddLink } from "@/components/NewButton";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           )}
         </Section>
 
-        <Section title="Quotations">
+        <Section title="Quotations" action={<AddLink href={`/quotations/new?customer=${customer.id}`} label="New quotation" />}>
           {customer.quotations.length === 0 ? (
             <EmptyState text="No quotations." />
           ) : (
@@ -97,7 +98,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           )}
         </Section>
 
-        <Section title="Purchase Orders">
+        <Section title="Purchase Orders" action={<AddLink href={`/purchase-orders/new?customer=${customer.id}`} label="Record PO" />}>
           {customer.purchaseOrders.length === 0 ? (
             <EmptyState text="No purchase orders." />
           ) : (
@@ -126,7 +127,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           )}
         </Section>
 
-        <Section title="Invoices">
+        <Section title="Invoices" action={<AddLink href={`/invoices/new?customer=${customer.id}`} label="New invoice" />}>
           {customer.invoices.length === 0 ? (
             <EmptyState text="No invoices." />
           ) : (

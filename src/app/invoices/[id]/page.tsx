@@ -5,6 +5,7 @@ import { invoiceOutstanding, isOverdue, fmtINR } from "@/lib/calc";
 import { paymentFollowUpEmail, invoiceCorrectionResponseEmail } from "@/lib/communications";
 import { PageHeader, Section, StatCard, EmptyState } from "@/components/ui";
 import { requireAccess } from "@/lib/auth";
+import { AddLink } from "@/components/NewButton";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +87,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </dl>
         </Section>
 
-        <Section title="Payments">
+        <Section title="Payments" action={outstanding > 0 ? <AddLink href={`/invoices/${invoice.id}/payment`} label="Record payment" /> : undefined}>
           {invoice.payments.length === 0 ? (
             <EmptyState text="No payments received yet." />
           ) : (

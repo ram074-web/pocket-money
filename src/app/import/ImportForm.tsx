@@ -8,6 +8,7 @@ type ImportResult = {
   batchId: string;
   summary: Record<string, number>;
   rows: RowResult[];
+  customerRows?: RowResult[];
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -97,7 +98,34 @@ export function ImportForm() {
             </div>
           </Section>
 
-          <Section title="Row-by-row Results">
+          {result.customerRows && result.customerRows.length > 0 && (
+            <Section title="Customers">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Row</th>
+                    <th>Result</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.customerRows.map((r) => (
+                    <tr key={`c-${r.row}`}>
+                      <td>{r.row}</td>
+                      <td>
+                        <span className={`badge ${STATUS_TONE[r.status] ?? "badge-gray"}`}>
+                          {STATUS_LABEL[r.status] ?? r.status}
+                        </span>
+                      </td>
+                      <td className="text-xs">{r.issues.join(" ") || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Section>
+          )}
+
+          <Section title="Invoices">
             {result.rows.length === 0 ? (
               <EmptyState text="No data rows found." />
             ) : (

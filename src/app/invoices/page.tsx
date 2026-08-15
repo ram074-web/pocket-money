@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { invoiceOutstanding, isOverdue, fmtINR } from "@/lib/calc";
 import { PageHeader, Section, StatusBadge, EmptyState } from "@/components/ui";
 import { requireAccess } from "@/lib/auth";
+import { NewButton } from "@/components/NewButton";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,10 @@ export default async function InvoicesPage({
           ))}
         </div>
 
-        <Section title={`${invoices.length} invoice(s)${status ? ` — ${status.replaceAll("_", " ")}` : ""}`}>
+        <Section
+          title={`${invoices.length} invoice(s)${status ? ` — ${status.replaceAll("_", " ")}` : ""}`}
+          action={<NewButton href="/invoices/new" label="New invoice" />}
+        >
           {invoices.length === 0 ? (
             <EmptyState text="No invoices match this filter." />
           ) : (
