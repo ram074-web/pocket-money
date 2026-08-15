@@ -1,10 +1,34 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 
 export const metadata: Metadata = {
   title: "Finance & Operations Control Center",
   description: "Integrated Sales, Invoicing, Receivables & Payables Management",
+  // Lets iOS open the home-screen shortcut fullscreen; Android reads this
+  // from manifest.ts instead.
+  appleWebApp: {
+    capable: true,
+    title: "Finance Ops",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/icon-180.png", sizes: "180x180", type: "image/png" }],
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#1d4ed8",
+  // The layout is designed to fit a phone screen; allowing zoom keeps the
+  // dense financial tables accessible.
+  maximumScale: 5,
 };
 
 const NAV = [
@@ -43,6 +67,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </nav>
         </aside>
         <main className="flex-1 min-w-0">{children}</main>
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

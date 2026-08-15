@@ -186,6 +186,20 @@ ship with fabricated customers and invoices in your books. Populate it via
 the Excel Import page, or use the browser version with `npm run db:seed` if
 you just want to explore with sample data.
 
+### Getting installers automatically (CI)
+
+`.github/workflows/desktop-release.yml` builds on real Windows, macOS and
+Linux runners and attaches the installers to a GitHub Release:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+You can also run it manually from the repository's **Actions** tab, which
+leaves the installers as downloadable workflow artifacts without publishing a
+release. This is the recommended path — it's the only way to produce the
+Windows `.exe` installer and a signed macOS build.
+
 ### Cross-platform build notes
 
 Each installer format needs its platform's native tooling, so building all
@@ -209,6 +223,52 @@ Builds are large (~350–620 MB per platform) because each bundles the Electron
 runtime plus Prisma query-engine binaries for every target platform. Trimming
 `binaryTargets` in `prisma/schema.prisma` to just the platform being built
 reduces this meaningfully.
+
+## Mobile / hosted access
+
+The web UI is responsive and installs to a phone home screen as a PWA — it
+opens fullscreen with its own icon, no app store involved. On Android: Chrome
+→ menu → "Install app" / "Add to Home Screen". On iOS: Safari → Share → "Add
+to Home Screen".
+
+**A phone cannot run this app by itself.** Unlike the desktop build — which
+bundles the Node server and keeps everything on your machine — mobile needs
+the app running on a server it can reach over the network. That is a real
+trade-off, not just extra work: hosting moves your financial data off your
+own machine onto whatever host you choose.
+
+The service worker (`public/sw.js`) deliberately caches **only** immutable
+build assets — never pages, never API responses. A cached "amount overdue" is
+worse than no number at all, so every figure is fetched live.
+
+### Hosting it
+
+A `Dockerfile` is included and builds the standalone output into a small
+runtime image:
+
+```bash
+docker build -t finance-ops .
+docker run -d -p 3000:3000 -v finance-ops-data:/data finance-ops
+```
+
+**The `-v .../data` volume is mandatory.** The database is a SQLite file at
+`/data/pocket-money.db`; on a host with ephemeral disk it would be silently
+recreated empty on every deploy. That rules out the default serverless
+configuration of platforms like Vercel — use a host that offers a persistent
+volume (Fly.io, Railway, Render, a VPS), or switch the datasource in
+`prisma/schema.prisma` to PostgreSQL and point `DATABASE_URL` at a managed
+database. The container runs `prisma db push` on start, so a fresh volume is
+initialised automatically and an existing one is migrated additively.
+
+### Before you put real financial data on a server
+
+- **There is no authentication in this app.** Anyone who can reach the URL
+  can read every invoice, customer and payment figure. Do not expose it to
+  the public internet as-is — put it behind a VPN, an authenticating reverse
+  proxy, or add real auth first. The role selector on the WhatsApp simulator
+  is a demonstration of the permission model, *not* enforced security.
+- Use HTTPS (required anyway for PWA install and service workers).
+- The desktop build remains the option where data never leaves your machine.
 
 ## Data accuracy rules (spec section 15)
 
@@ -261,4 +321,9 @@ src/app/                    Dashboard, Customers, Vendors, Invoices, Actions,
 electron/main.js            Desktop app entry: starts the bundled Next.js
                              server, points Prisma at the per-user database
 scripts/prepare-desktop.mjs Assembles .next/standalone for packaging
+scripts/generate-icons.mjs  Regenerates app icons from one SVG source
+src/app/manifest.ts         PWA manifest (phone home-screen install)
+public/sw.js                Service worker — caches assets only, never data
+Dockerfile                  Hosted/mobile deployment image
+.github/workflows/          CI that builds desktop installers per platform
 ```

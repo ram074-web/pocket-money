@@ -1,0 +1,93 @@
+name: Desktop Release
+
+# Builds the desktop installers on each platform's own runner — the Windows
+# .exe installer and a signable macOS build can't be produced from Linux —
+# and attaches them to a GitHub Release.
+#
+# Trigger either by pushing a version tag:
+#     git tag v0.1.0 && git push origin v0.1.0
+# or manually from the Actions tab ("Run workflow").
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            artifacts: "dist-electron/*.AppImage"
+          - os: windows-latest
+            platform: win
+            artifacts: "dist-electron/*.exe dist-electron/*-win.zip"
+          - os: macos-latest
+            platform: mac
+            artifacts: "dist-electron/*.dmg dist-electron/*-mac.zip"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build desktop bundle
+        # Generates .next/standalone, copies public/static into it, and
+        # creates the blank pre-migrated SQLite template.
+        run: npm run desktop:prepare
+        env:
+          DATABASE_URL: file:./prisma/dev.db
+
+      - name: Build installer
+        run: npx electron-builder --${{ matrix.platform }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS code signing: add APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD /
+          # APPLE_TEAM_ID and a CSC_LINK certificate as repository secrets to
+          # produce a signed, notarized build. Without them the macOS build
+          # is unsigned and Gatekeeper will warn on first open.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.platform }}
+          path: |
+            dist-electron/*.AppImage
+            dist-electron/*.exe
+            dist-electron/*.dmg
+            dist-electron/*.zip
+          if-no-files-found: warn
+          retention-days: 14
+
+  release:
+    # Only publish a Release for tag pushes; manual runs just leave the
+    # installers as downloadable workflow artifacts.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

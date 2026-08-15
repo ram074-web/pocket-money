@@ -66,6 +66,20 @@ table.data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
+  /* On a phone these tables are wider than the screen. Making each table its
+     own horizontal scroll container keeps the surrounding page at viewport
+     width instead of forcing the whole layout to scroll sideways. */
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* display:block on the table detaches the internal table layout, so the row
+   groups need it restored to keep column alignment. */
+table.data-table thead,
+table.data-table tbody {
+  display: table;
+  width: 100%;
 }
 
 table.data-table th {

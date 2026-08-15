@@ -1,0 +1,12 @@
+node_modules
+.next
+dist-electron
+.git
+.github
+resources/db-template.db
+prisma/*.db
+prisma/*.db-journal
+*.md
+.env
+.env.*
+!.env.example

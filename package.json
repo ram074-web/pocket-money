@@ -9,8 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
-    "desktop:template-db": "rm -f resources/db-template.db && DATABASE_URL=\"file:$(pwd)/resources/db-template.db\" prisma db push --skip-generate",
-    "desktop:prepare": "npm run build && node scripts/prepare-desktop.mjs && npm run desktop:template-db",
+    "desktop:prepare": "npm run build && node scripts/prepare-desktop.mjs",
     "desktop:dev": "npm run desktop:prepare && electron .",
     "desktop:dist": "npm run desktop:prepare && electron-builder",
     "desktop:dist:win": "npm run desktop:prepare && electron-builder --win",
@@ -23,6 +22,7 @@
   "build": {
     "appId": "com.pocketmoney.financeops",
     "productName": "Finance and Operations Control Center",
+    "icon": "public/icons/icon-512.png",
     "directories": {
       "output": "dist-electron"
     },

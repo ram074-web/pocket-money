@@ -5,6 +5,7 @@
 // `.next/static` (on a normal deployment a CDN serves those). The desktop app
 // has no CDN, so they get copied in here.
 import { cp, rm, mkdir, access } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -34,9 +35,30 @@ await cp(path.join(root, ".next", "static"), path.join(standalone, ".next", "sta
 // DATABASE_URL pointing at a dev file must not ship.
 await rm(path.join(standalone, ".env"), { force: true });
 
-// Blank, fully-migrated database copied to the user's app-data folder on
-// first launch (written by the desktop:template-db script).
-await mkdir(path.join(root, "resources"), { recursive: true });
+// Blank, fully-migrated database that gets copied into the user's app-data
+// folder on first launch. Built here in Node rather than a shell one-liner so
+// the same command works on the Windows CI runner as on macOS/Linux.
+const resourcesDir = path.join(root, "resources");
+await mkdir(resourcesDir, { recursive: true });
+const templateDb = path.join(resourcesDir, "db-template.db");
+await rm(templateDb, { force: true });
+
+execFileSync("npx", ["prisma", "db", "push", "--skip-generate"], {
+  cwd: root,
+  stdio: "inherit",
+  shell: process.platform === "win32",
+  env: {
+    ...process.env,
+    // Prisma accepts forward slashes on every platform; backslashes in a
+    // file: URL would be read as escapes.
+    DATABASE_URL: `file:${templateDb.split(path.sep).join("/")}`,
+  },
+});
+
+if (!(await exists(templateDb))) {
+  console.error(`Failed to create the database template at ${templateDb}`);
+  process.exit(1);
+}
 
 // Note for future maintainers: electron-builder skips dot-directories when
 // copying extraResources, but Prisma's generated client lives in
