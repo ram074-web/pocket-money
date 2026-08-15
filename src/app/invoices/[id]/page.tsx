@@ -4,10 +4,13 @@ import { prisma } from "@/lib/db";
 import { invoiceOutstanding, isOverdue, fmtINR } from "@/lib/calc";
 import { paymentFollowUpEmail, invoiceCorrectionResponseEmail } from "@/lib/communications";
 import { PageHeader, Section, StatCard, EmptyState } from "@/components/ui";
+import { requireAccess } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAccess("invoices");
+
   const { id } = await params;
   const invoice = await prisma.invoice.findUnique({
     where: { id },

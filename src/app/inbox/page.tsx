@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { fmtINR } from "@/lib/calc";
 import { PageHeader, Section, EmptyState } from "@/components/ui";
 import { LoadScenariosButton } from "./LoadScenariosButton";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,8 @@ const MATCH_TONE: Record<string, string> = {
 };
 
 export default async function InboxPage() {
+  await requireUser();
+
   const messages = await prisma.inboundMessage.findMany({
     include: { customer: true, vendor: true },
     orderBy: { receivedAt: "desc" },

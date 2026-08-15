@@ -2,10 +2,13 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { vendorInvoiceOutstanding, isOverdue, fmtINR } from "@/lib/calc";
 import { PageHeader, Section, EmptyState } from "@/components/ui";
+import { requireAccess } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function VendorsPage() {
+  await requireAccess("payables");
+
   const vendors = await prisma.vendor.findMany({
     include: { vendorInvoices: true },
     orderBy: { name: "asc" },

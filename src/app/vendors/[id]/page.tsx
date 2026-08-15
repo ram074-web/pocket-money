@@ -2,10 +2,13 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { vendorInvoiceOutstanding, vendorInvoiceTotal, isOverdue, fmtINR } from "@/lib/calc";
 import { PageHeader, Section, StatCard, StatusBadge, EmptyState } from "@/components/ui";
+import { requireAccess } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function VendorDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAccess("payables");
+
   const { id } = await params;
   const vendor = await prisma.vendor.findUnique({
     where: { id },

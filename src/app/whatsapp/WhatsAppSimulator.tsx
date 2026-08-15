@@ -22,8 +22,14 @@ const EXAMPLES = [
 
 type Msg = { from: "user" | "bot"; text: string; authorized?: boolean };
 
-export function WhatsAppSimulator() {
-  const [role, setRole] = useState<Role>("Owner");
+export function WhatsAppSimulator({
+  currentRole,
+  canSwitchRole,
+}: {
+  currentRole: Role;
+  canSwitchRole: boolean;
+}) {
+  const [role, setRole] = useState<Role>(currentRole);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,22 +61,34 @@ export function WhatsAppSimulator() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 text-sm">
-        <span className="text-[var(--muted)]">Logged in as:</span>
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value as Role)}
-          className="border border-[var(--border)] rounded-md px-2 py-1 bg-[var(--surface)]"
-        >
-          {ROLES.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-        <span className="text-xs text-[var(--muted)]">
-          Access is permission-gated per role (Section 17) — try switching roles and asking about payables.
-        </span>
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <span className="text-[var(--muted)]">Asking as:</span>
+        {canSwitchRole ? (
+          <>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as Role)}
+              className="border border-[var(--border)] rounded-md px-2 py-1 bg-[var(--surface)]"
+            >
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-[var(--muted)]">
+              As an Owner you can preview any role — try asking about payables as Sales to see access denied.
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="badge badge-gray">{currentRole}</span>
+            <span className="text-xs text-[var(--muted)]">
+              Answers are limited to what your role may access (Section 17). The server ignores any other role
+              the page might request.
+            </span>
+          </>
+        )}
       </div>
 
       <div className="card">

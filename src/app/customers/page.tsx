@@ -2,10 +2,13 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { invoiceOutstanding, isOverdue, fmtINR } from "@/lib/calc";
 import { PageHeader, Section, EmptyState } from "@/components/ui";
+import { requireAccess } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function CustomersPage() {
+  await requireAccess("customers");
+
   const customers = await prisma.customer.findMany({
     include: { invoices: true },
     orderBy: { name: "asc" },

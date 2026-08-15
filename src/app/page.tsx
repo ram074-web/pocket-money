@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { getDashboardData, fmtINR } from "@/lib/calc";
 import { PageHeader, StatCard, Section, SeverityBadge, EmptyState } from "@/components/ui";
+import { requireAccess } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  await requireAccess("dashboard");
+
   const d = await getDashboardData();
 
   return (

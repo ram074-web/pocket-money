@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/db";
 import { Division, InvoiceStatus } from "@prisma/client";
+import { requireApiUser } from "@/lib/api-auth";
 
 // Imports a customer invoice register from Excel into the single source of
 // truth. Expected header row (case-insensitive, order-independent):
@@ -42,6 +43,9 @@ function num(value: unknown): number | null {
 }
 
 export async function POST(req: NextRequest) {
+  const { user, response } = await requireApiUser("invoices");
+  if (response) return response;
+
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   if (!file || typeof file === "string") {
@@ -215,6 +219,7 @@ export async function POST(req: NextRequest) {
   const batch = await prisma.importBatch.create({
     data: {
       fileName: file.name,
+      importedBy: `${user.name} <${user.email}>`,
       summary: JSON.stringify(summary),
       rows: {
         create: results.map((r) => ({

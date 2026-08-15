@@ -1,7 +1,10 @@
 import { PageHeader, Section } from "@/components/ui";
 import { ImportForm } from "./ImportForm";
+import { requireAccess } from "@/lib/auth";
 
-export default function ImportPage() {
+export default async function ImportPage() {
+  await requireAccess("invoices");
+
   return (
     <div>
       <PageHeader

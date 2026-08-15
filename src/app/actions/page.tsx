@@ -2,10 +2,13 @@ import { prisma } from "@/lib/db";
 import { daysBetween, today } from "@/lib/calc";
 import { PageHeader, Section, EmptyState } from "@/components/ui";
 import { FollowUpRow } from "./FollowUpRow";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ActionsPage() {
+  await requireUser();
+
   const followUps = await prisma.followUp.findMany({
     where: { status: "PENDING" },
     include: { customer: true, vendor: true, employee: true, invoice: true, vendorInvoice: true },

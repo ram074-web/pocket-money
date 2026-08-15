@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { getDashboardData, fmtINR } from "@/lib/calc";
 import { PageHeader, Section, EmptyState } from "@/components/ui";
+import { requireAccess } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const MARGIN_THRESHOLD = 0.15;
 
 export default async function ProjectsPage() {
+  await requireAccess("projects");
+
   const d = await getDashboardData();
   const rows = [...d.projectProfitability].sort((a, b) => (a.margin ?? 1) - (b.margin ?? 1));
 

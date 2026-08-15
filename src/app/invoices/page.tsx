@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { invoiceOutstanding, isOverdue, fmtINR } from "@/lib/calc";
 import { PageHeader, Section, StatusBadge, EmptyState } from "@/components/ui";
+import { requireAccess } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,8 @@ export default async function InvoicesPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  await requireAccess("invoices");
+
   const { status } = await searchParams;
   const invoices = await prisma.invoice.findMany({
     where: status ? { status: status as never } : undefined,

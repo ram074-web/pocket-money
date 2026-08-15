@@ -3,10 +3,13 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { invoiceOutstanding, isOverdue, fmtINR } from "@/lib/calc";
 import { PageHeader, Section, StatCard, StatusBadge, EmptyState } from "@/components/ui";
+import { requireAccess } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAccess("customers");
+
   const { id } = await params;
   const customer = await prisma.customer.findUnique({
     where: { id },

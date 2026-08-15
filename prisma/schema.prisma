@@ -91,6 +91,50 @@ enum RiskSeverity {
   GREEN
 }
 
+// Roles mirror src/lib/inbox/permissions.ts (spec section 17). Stored as an
+// enum so a typo can't silently grant or deny access.
+enum UserRole {
+  OWNER
+  FINANCE_MANAGER
+  SALES
+  OPERATIONS
+  ACCOUNTS_EXECUTIVE
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  // scrypt hash, stored as "scrypt:<saltHex>:<keyHex>" — never a plaintext
+  // or reversible password.
+  passwordHash String
+  role         UserRole  @default(ACCOUNTS_EXECUTIVE)
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions Session[]
+
+  @@index([email])
+}
+
+// Server-side sessions rather than self-contained tokens, so access can be
+// revoked immediately (deactivating a user kills their live sessions).
+model Session {
+  id        String   @id @default(cuid())
+  // SHA-256 of the cookie value; a leaked database still doesn't yield
+  // usable session cookies.
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model Employee {
   id        String   @id @default(cuid())
   name      String

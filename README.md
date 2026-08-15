@@ -31,10 +31,17 @@ npm run db:seed        # loads realistic sample data across both divisions
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000. On first launch you'll be asked to create the
+Owner account — see "Authentication & access control" below.
 
 To reset to a clean demo state at any time, re-run `npm run db:seed` — it
-wipes and reloads all tables.
+wipes and reloads the business tables (user accounts are left alone).
+
+> **Running a production build locally:** the project uses Next's
+> `output: "standalone"`, so use `node .next/standalone/server.js` after
+> `npm run desktop:prepare` rather than `npm start` — `next start` warns and
+> isn't the supported path for standalone output. For everyday development
+> `npm run dev` is unaffected.
 
 ## What's implemented
 
@@ -262,13 +269,45 @@ initialised automatically and an existing one is migrated additively.
 
 ### Before you put real financial data on a server
 
-- **There is no authentication in this app.** Anyone who can reach the URL
-  can read every invoice, customer and payment figure. Do not expose it to
-  the public internet as-is — put it behind a VPN, an authenticating reverse
-  proxy, or add real auth first. The role selector on the WhatsApp simulator
-  is a demonstration of the permission model, *not* enforced security.
 - Use HTTPS (required anyway for PWA install and service workers).
 - The desktop build remains the option where data never leaves your machine.
+- Take backups: the whole database is the single SQLite file on the volume.
+
+## Authentication & access control
+
+Every page and API route requires a signed-in user. There is no way to read
+any financial figure without an account.
+
+**First run.** With no accounts in the database, the app shows a one-time
+setup screen to create the initial **Owner** account. There is no default or
+hardcoded password, and that screen refuses to run once any account exists.
+
+**How it works**
+- Passwords are hashed with scrypt (Node's stdlib) and compared in constant
+  time. Plaintext passwords are never stored, logged, or echoed back to the
+  browser.
+- Sessions are server-side records, not self-contained tokens, so access can
+  be revoked instantly — deactivating a user kills their live sessions. The
+  cookie is `HttpOnly`, `SameSite=Lax`, and `Secure` in production; only a
+  SHA-256 of it is stored, so a leaked database yields no usable cookies.
+- Failed logins return one generic message, so the form can't be used to
+  discover which email addresses exist.
+
+**Roles** are the five from spec section 17 (Owner, Finance Manager, Sales,
+Operations, Accounts Executive), enforced **server-side** on every page and
+API route via `requireAccess(domain)` / `requireApiUser(domain)`. Hiding a
+nav link is a convenience, never the control: requesting a page directly
+redirects to `/no-access`, and an API call returns `403`.
+
+The WhatsApp simulator's role picker takes the role from your **session**,
+not the request body — a Sales user asking as `"Owner"` is still answered as
+Sales. Owners may preview other roles, which grants nothing they don't
+already have.
+
+**Still worth knowing:** there's no password reset, no rate limiting on login
+attempts, and no user-management UI yet — additional accounts are created
+directly in the database. Add rate limiting before exposing this to the open
+internet.
 
 ## Data accuracy rules (spec section 15)
 
@@ -300,6 +339,10 @@ initialised automatically and an existing one is migrated additively.
 ```
 prisma/schema.prisma       Full data model
 prisma/seed.ts              Realistic multi-division sample data
+src/lib/auth.ts             Sessions, sign-in/out, requireUser/requireAccess
+src/lib/password.ts         scrypt hashing + constant-time verification
+src/lib/api-auth.ts         Auth/role guard for API route handlers
+src/middleware.ts           Bounces unauthenticated requests to /login
 src/lib/calc.ts             Outstanding/ageing/cash-position/risk aggregation
 src/lib/query-engine.ts     Rule-based NL question resolver ("Ask")
 src/lib/communications.ts   Draft email templates (follow-up, correction, etc.)

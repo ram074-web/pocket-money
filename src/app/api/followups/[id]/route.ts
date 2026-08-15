@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireApiUser } from "@/lib/api-auth";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { user, response } = await requireApiUser();
+  if (response) return response;
+
   const { id } = await params;
   const body = await req.json().catch(() => null);
   const status = body?.status;
@@ -23,7 +27,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       field: "status",
       oldValue: existing.status,
       newValue: status,
-      actor: "owner-dashboard",
+      // Real attribution now that requests are authenticated — the audit
+      // trail records who actually made the change.
+      actor: `${user.name} <${user.email}>`,
     },
   });
 

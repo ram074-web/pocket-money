@@ -1,7 +1,10 @@
 import { PageHeader, Section } from "@/components/ui";
 import { AUTOMATICALLY_ALLOWED_ACTIONS, APPROVAL_REQUIRED_ACTIONS, ROLES, domainsForRole } from "@/lib/inbox/permissions";
+import { requireUser } from "@/lib/auth";
 
-export default function PermissionsPage() {
+export default async function PermissionsPage() {
+  await requireUser();
+
   return (
     <div>
       <PageHeader

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { fmtINR } from "@/lib/calc";
 import { PageHeader, Section, StatusBadge, EmptyState } from "@/components/ui";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,8 @@ function safeParseObject(json: string | null): Record<string, unknown> {
 }
 
 export default async function InboundMessageDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireUser();
+
   const { id } = await params;
   const message = await prisma.inboundMessage.findUnique({
     where: { id },

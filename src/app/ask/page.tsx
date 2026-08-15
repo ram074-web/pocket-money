@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/ui";
 import { AskForm } from "./AskForm";
+import { requireAccess } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,9 @@ const EXAMPLES = [
   "How much does Orion Global Foods Pvt Ltd owe us?",
 ];
 
-export default function AskPage() {
+export default async function AskPage() {
+  await requireAccess("dashboard");
+
   return (
     <div>
       <PageHeader
