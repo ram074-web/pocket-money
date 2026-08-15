@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const ROLES = ["Owner", "Finance Manager", "Sales", "Operations", "Accounts Executive"] as const;
 type Role = (typeof ROLES)[number];
@@ -27,6 +27,11 @@ export function WhatsAppSimulator() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages, loading]);
 
   async function send(text: string) {
     if (!text.trim()) return;
@@ -69,7 +74,7 @@ export function WhatsAppSimulator() {
       </div>
 
       <div className="card">
-        <div className="p-4 min-h-[300px] max-h-[500px] overflow-y-auto space-y-3 bg-[var(--background)]">
+        <div ref={scrollRef} className="p-4 min-h-[300px] max-h-[500px] overflow-y-auto space-y-3 bg-[var(--background)]">
           {messages.length === 0 && (
             <div className="text-sm text-[var(--muted)] text-center py-8">
               Send a message below, or tap an example to get started.
