@@ -35,6 +35,12 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    # Every step needs this: Prisma reads it to resolve the datasource block,
+    # and the bundle step overrides it when creating the database template.
+    # The build itself never connects — all pages are dynamic.
+    env:
+      DATABASE_URL: file:./prisma/dev.db
+
     steps:
       - uses: actions/checkout@v4
 
@@ -46,12 +52,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Run generation explicitly rather than relying on Prisma's postinstall
+      # hook. On the Windows runner that hook did not produce the client, and
+      # a missing client is not a loud failure: every Prisma result silently
+      # degrades to `any`, so the build dies later in an unrelated-looking
+      # wall of TS7006 "implicitly has an any type" errors.
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
       - name: Build desktop bundle
         # Generates .next/standalone, copies public/static into it, and
         # creates the blank pre-migrated SQLite template.
         run: npm run desktop:prepare
-        env:
-          DATABASE_URL: file:./prisma/dev.db
 
       - name: Build installer
         run: npx electron-builder --${{ matrix.platform }} --publish never
