@@ -12,7 +12,16 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "dist-electron/**",
   ]),
+  {
+    // Electron's main process runs as CommonJS, and the Next.js standalone
+    // server is started by require()-ing a path resolved at runtime.
+    files: ["electron/**/*.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

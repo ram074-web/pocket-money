@@ -2,15 +2,51 @@
   "name": "pocket-money",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "desktop:template-db": "rm -f resources/db-template.db && DATABASE_URL=\"file:$(pwd)/resources/db-template.db\" prisma db push --skip-generate",
+    "desktop:prepare": "npm run build && node scripts/prepare-desktop.mjs && npm run desktop:template-db",
+    "desktop:dev": "npm run desktop:prepare && electron .",
+    "desktop:dist": "npm run desktop:prepare && electron-builder",
+    "desktop:dist:win": "npm run desktop:prepare && electron-builder --win",
+    "desktop:dist:mac": "npm run desktop:prepare && electron-builder --mac",
+    "desktop:dist:linux": "npm run desktop:prepare && electron-builder --linux"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "build": {
+    "appId": "com.pocketmoney.financeops",
+    "productName": "Finance and Operations Control Center",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": ["electron/**/*", "package.json"],
+    "asar": false,
+    "extraResources": [
+      { "from": "resources/db-template.db", "to": "db-template.db" },
+      { "from": ".next/standalone", "to": "app" },
+      {
+        "from": ".next/standalone/node_modules/.prisma",
+        "to": "app/node_modules/.prisma"
+      }
+    ],
+    "win": {
+      "target": ["nsis", "zip"]
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.finance"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Office"
+    }
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -26,6 +62,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",

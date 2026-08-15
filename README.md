@@ -150,6 +150,66 @@ writing a new adapter that produces the same `IncomingMessage` shape and
 turns approved `WhatsAppDraft`/`Communication` rows into real API calls —
 the classification/extraction/matching/routing logic does not change.
 
+## Desktop app (Electron)
+
+The same app can be packaged as a native desktop application — installed like
+normal software, with its own window and icon, no terminal or browser tab
+required. It bundles the Next.js server and runs it on a random free
+localhost port internally.
+
+```bash
+npm run desktop:dev          # build + launch the desktop app locally
+npm run desktop:dist         # build installers for the current platform
+npm run desktop:dist:win     # Windows  (nsis installer + zip)
+npm run desktop:dist:mac     # macOS    (dmg + zip)
+npm run desktop:dist:linux   # Linux    (AppImage)
+```
+
+Artifacts are written to `dist-electron/`.
+
+**Where your data lives.** On first launch the app copies a blank,
+already-migrated SQLite database into the OS's per-user app-data directory
+and uses it from then on:
+
+| Platform | Path |
+|---|---|
+| Windows | `%APPDATA%\pocket-money\pocket-money.db` |
+| macOS | `~/Library/Application Support/pocket-money/pocket-money.db` |
+| Linux | `~/.config/pocket-money/pocket-money.db` |
+
+It is never written inside the installed application (which may be
+read-only), and an existing database is never overwritten on upgrade — back
+up that single file to back up everything.
+
+**A desktop install starts empty**, by design: a financial system should not
+ship with fabricated customers and invoices in your books. Populate it via
+the Excel Import page, or use the browser version with `npm run db:seed` if
+you just want to explore with sample data.
+
+### Cross-platform build notes
+
+Each installer format needs its platform's native tooling, so building all
+three from one machine isn't automatic:
+
+- **Linux → AppImage**: builds anywhere. Verified working.
+- **Windows → zip**: builds on Linux/macOS. Verified working.
+- **Windows → nsis installer**: the `.exe` installer step shells out to
+  `wine` when building from Linux — install wine, or build on Windows.
+- **macOS → zip / `.app`**: builds on Linux, but is **unsigned**. macOS
+  Gatekeeper will refuse to open an unsigned app downloaded from the
+  internet without a right-click → Open override.
+- **macOS → dmg**, and signing/notarization, require a real macOS machine
+  plus an Apple Developer certificate.
+
+For distributing to real users, run the builds in per-platform CI (e.g. a
+GitHub Actions matrix of `windows-latest` / `macos-latest` / `ubuntu-latest`)
+rather than cross-building from one host.
+
+Builds are large (~350–620 MB per platform) because each bundles the Electron
+runtime plus Prisma query-engine binaries for every target platform. Trimming
+`binaryTargets` in `prisma/schema.prisma` to just the platform being built
+reduces this meaningfully.
+
 ## Data accuracy rules (spec section 15)
 
 - Nothing is fabricated: invoice/PO numbers, amounts, dates, and statuses
@@ -198,4 +258,7 @@ src/lib/inbox/              Channel-agnostic email+WhatsApp engine (test mode)
 src/app/                    Dashboard, Customers, Vendors, Invoices, Actions,
                              Projects, Ask, Import, Inbox, WhatsApp,
                              Permissions pages + API routes
+electron/main.js            Desktop app entry: starts the bundled Next.js
+                             server, points Prisma at the per-user database
+scripts/prepare-desktop.mjs Assembles .next/standalone for packaging
 ```

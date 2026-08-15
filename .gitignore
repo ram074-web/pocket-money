@@ -44,3 +44,8 @@ next-env.d.ts
 # prisma / sqlite
 /prisma/*.db
 /prisma/*.db-journal
+
+# electron desktop build output
+/dist-electron
+# generated from the schema by `npm run desktop:template-db`
+/resources/db-template.db
